@@ -6,8 +6,9 @@ use core::cryptography::{generate_qsafe_keypair, sign_data, verify_signature};
 use core::nanobot_control::communication::NanobotCommunication;
 use core::nanobot_control::task_manager::{TaskManager, NanobotTask};
 use log::{info, error};
+use anyhow::Result;
 
-fn main() {
+fn main() -> Result<()> {
     env_logger::init();
 
     let (public_key, private_key) = generate_qsafe_keypair();
@@ -21,10 +22,9 @@ fn main() {
     info!("Encrypted message sent to nanobot.");
 
     let decrypted_message = nanobot_comm.receive_secure_message(&encrypted_message);
-    match String::from_utf8(decrypted_message) {
-        Ok(msg) => info!("Decrypted message: {}", msg),
-        Err(e) => error!("Failed to decode message: {}", e),
-    }
+    let msg_str = String::from_utf8(decrypted_message)
+        .map_err(|e| anyhow::anyhow!("UTF-8 conversion error: {}", e))?;
+    info!("Decrypted message: {}", msg_str);
 
     let mut task_manager = TaskManager::new();
     task_manager.add_task(NanobotTask {
@@ -37,5 +37,7 @@ fn main() {
     let is_valid = verify_signature(&public_key, message, &signature);
 
     info!("Signature verification result: {}", is_valid);
+
+    Ok(())
 }
 
