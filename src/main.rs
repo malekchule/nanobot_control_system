@@ -1,15 +1,24 @@
-// src/main.rs
-
 mod core;
+mod metrics;
 
 use core::cryptography::{generate_qsafe_keypair, sign_data, verify_signature};
 use core::nanobot_control::communication::NanobotCommunication;
 use core::nanobot_control::task_manager::{TaskManager, NanobotTask};
+use metrics::{TASKS_EXECUTED, ACTIVE_UNITS, serve_metrics};
 use log::{info, error};
 use anyhow::Result;
+use std::net::SocketAddr;
+use tokio::task;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::init();
+
+    let metrics_addr: SocketAddr = "127.0.0.1:9898".parse()?;
+    task::spawn(async move {
+        serve_metrics(metrics_addr).await;
+    });
+    info!("Metrics server running on http://{}/metrics", metrics_addr);
 
     let (public_key, private_key) = generate_qsafe_keypair();
     info!("Generated quantum-safe keypair.");
@@ -32,11 +41,13 @@ fn main() -> Result<()> {
         description: "Deliver medication to target cells.".to_string(),
     });
     task_manager.execute_task(1);
+    TASKS_EXECUTED.inc();
 
     let signature = sign_data(&private_key, message);
     let is_valid = verify_signature(&public_key, message, &signature);
-
     info!("Signature verification result: {}", is_valid);
+
+    ACTIVE_UNITS.set(1);
 
     Ok(())
 }
