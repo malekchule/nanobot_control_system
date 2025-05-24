@@ -1,0 +1,13 @@
+[package]
+name = "nanobot_control_system"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pqcrypto = "0.17.0"
+ring = "0.16"
+log = "0.4"
+env_logger = "0.10"
+anyhow = "1.0"
+thiserror = "1.0"
+
