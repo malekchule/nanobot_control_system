@@ -12,6 +12,12 @@ pub struct TaskManager {
     tasks: Vec<NanobotTask>,
 }
 
+impl Default for TaskManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskManager {
     pub fn new() -> Self {
         TaskManager { tasks: vec![] }
