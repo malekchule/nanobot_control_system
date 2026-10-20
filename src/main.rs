@@ -2,12 +2,14 @@ mod metrics;
 
 use nanobot_control_system::core;
 
-use core::cryptography::{generate_qsafe_keypair, sign_data, verify_signature};
-use core::nanobot_control::communication::NanobotCommunication;
-use core::nanobot_control::task_manager::{TaskManager, NanobotTask};
-use metrics::{TASKS_EXECUTED, ACTIVE_UNITS, serve_metrics};
-use log::{info, error};
 use anyhow::Result;
+use core::cryptography::{
+    generate_qsafe_keypair, generate_signing_keypair, sign_data, verify_signature,
+};
+use core::nanobot_control::communication::NanobotCommunication;
+use core::nanobot_control::task_manager::{NanobotTask, TaskManager};
+use log::{error, info};
+use metrics::{serve_metrics, ACTIVE_UNITS, TASKS_EXECUTED};
 use std::net::SocketAddr;
 use tokio::task;
 
@@ -44,12 +46,13 @@ async fn main() -> Result<()> {
     task_manager.execute_task(1);
     TASKS_EXECUTED.inc();
 
-    let signature = sign_data(&private_key, message);
-    let is_valid = verify_signature(&public_key, message, &signature);
+    let (signing_public_key, signing_private_key) = generate_signing_keypair();
+
+    let signature = sign_data(&signing_private_key, message)?;
+    let is_valid = verify_signature(&signing_public_key, message, &signature);
     info!("Signature verification result: {}", is_valid);
 
     ACTIVE_UNITS.set(1);
 
     Ok(())
 }
-

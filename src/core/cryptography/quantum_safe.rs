@@ -35,14 +35,3 @@ pub fn decrypt_data(private_key: &[u8], encrypted: &[u8]) -> Vec<u8> {
         .map(|(d, k)| d ^ k)
         .collect()
 }
-
-pub fn sign_data(private_key: &[u8], message: &[u8]) -> Vec<u8> {
-    message.iter().map(|b| b ^ private_key[0]).collect()
-}
-
-pub fn verify_signature(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
-    signature
-        .iter()
-        .zip(message)
-        .all(|(s, m)| *s == (*m ^ public_key[0]))
-}
