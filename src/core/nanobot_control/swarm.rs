@@ -3,7 +3,7 @@
 
 use crate::core::cryptography::{generate_qsafe_keypair, sign_data, verify_signature};
 use crate::core::nanobot_control::communication::NanobotCommunication;
-use crate::core::nanobot_control::task_manager::{TaskManager, NanobotTask};
+use crate::core::nanobot_control::task_manager::{NanobotTask, TaskManager};
 
 pub struct NanobotUnit {
     pub id: u32,
@@ -47,10 +47,9 @@ impl NanobotSwarm {
 
     pub fn execute_all(&mut self) {
         for unit in &mut self.units {
-            for task in &unit.tasks.tasks {
+            for task in unit.tasks.iter_tasks() {
                 println!("Unit {} executing: {}", unit.id, task.description);
             }
         }
     }
 }
-

@@ -1,7 +1,7 @@
-use std::fs::{OpenOptions, File};
-use std::io::{Write, BufReader, BufRead};
+use anyhow::{Context, Result};
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
-use anyhow::{Result, Context};
 
 pub struct NanobotTask {
     pub task_id: u32,
@@ -19,6 +19,10 @@ impl TaskManager {
 
     pub fn add_task(&mut self, task: NanobotTask) {
         self.tasks.push(task);
+    }
+
+    pub fn iter_tasks(&self) -> impl Iterator<Item = &NanobotTask> {
+        self.tasks.iter()
     }
 
     pub fn execute_task(&self, task_id: u32) {
@@ -68,4 +72,3 @@ impl TaskManager {
         Ok(TaskManager { tasks })
     }
 }
-
