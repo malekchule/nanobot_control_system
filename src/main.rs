@@ -1,5 +1,6 @@
-mod core;
 mod metrics;
+
+use nanobot_control_system::core;
 
 use core::cryptography::{generate_qsafe_keypair, sign_data, verify_signature};
 use core::nanobot_control::communication::NanobotCommunication;
