@@ -8,7 +8,7 @@ use core::cryptography::{
 };
 use core::nanobot_control::communication::NanobotCommunication;
 use core::nanobot_control::task_manager::{NanobotTask, TaskManager};
-use log::{error, info};
+use log::info;
 use metrics::{serve_metrics, ACTIVE_UNITS, TASKS_EXECUTED};
 use std::net::SocketAddr;
 use tokio::task;
@@ -30,10 +30,10 @@ async fn main() -> Result<()> {
     info!("Nanobot communication interface initialized.");
 
     let message = b"Critical medical task: Deliver medication.";
-    let encrypted_message = nanobot_comm.send_secure_message(message);
+    let encrypted_message = nanobot_comm.send_secure_message(message)?;
     info!("Encrypted message sent to nanobot.");
 
-    let decrypted_message = nanobot_comm.receive_secure_message(&encrypted_message);
+    let decrypted_message = nanobot_comm.receive_secure_message(&encrypted_message)?;
     let msg_str = String::from_utf8(decrypted_message)
         .map_err(|e| anyhow::anyhow!("UTF-8 conversion error: {}", e))?;
     info!("Decrypted message: {}", msg_str);
