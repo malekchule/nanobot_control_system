@@ -1,9 +1,10 @@
 // Branch: swarm-simulation
 // File: src/core/nanobot_control/swarm.rs
 
-use crate::core::cryptography::{generate_qsafe_keypair, sign_data, verify_signature};
+use crate::core::cryptography::generate_qsafe_keypair;
 use crate::core::nanobot_control::communication::NanobotCommunication;
 use crate::core::nanobot_control::task_manager::{NanobotTask, TaskManager};
+use anyhow::Result;
 
 pub struct NanobotUnit {
     pub id: u32,
@@ -35,14 +36,16 @@ impl NanobotSwarm {
         }
     }
 
-    pub fn broadcast_message(&self, message: &[u8]) {
+    pub fn broadcast_message(&self, message: &[u8]) -> Result<()> {
         for unit in &self.units {
-            let encrypted = unit.comms.send_secure_message(message);
-            let decrypted = unit.comms.receive_secure_message(&encrypted);
-            if let Ok(msg) = String::from_utf8(decrypted) {
-                println!("Unit {} received: {}", unit.id, msg);
-            }
+            let encrypted = unit.comms.send_secure_message(message)?;
+            let decrypted = unit.comms.receive_secure_message(&encrypted)?;
+
+            let msg = String::from_utf8(decrypted)?;
+            println!("Unit {} received: {}", unit.id, msg);
         }
+
+        Ok(())
     }
 
     pub fn execute_all(&mut self) {
