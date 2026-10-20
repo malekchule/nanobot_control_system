@@ -1,4 +1,8 @@
-use pqcrypto_kem::ntruhps2048509::*;
+use pqcrypto::traits::kem::{
+    Ciphertext as CiphertextTrait, PublicKey as PublicKeyTrait, SecretKey as SecretKeyTrait,
+    SharedSecret as SharedSecretTrait,
+};
+use pqcrypto_ntru::ntruhps2048509::*;
 
 pub fn generate_qsafe_keypair() -> (Vec<u8>, Vec<u8>) {
     let (pk, sk) = keypair();
@@ -7,7 +11,7 @@ pub fn generate_qsafe_keypair() -> (Vec<u8>, Vec<u8>) {
 
 pub fn encrypt_data(public_key: &[u8], data: &[u8]) -> Vec<u8> {
     let pk = PublicKey::from_bytes(public_key).expect("Invalid public key");
-    let (ciphertext, shared_secret) = encapsulate(&pk);
+    let (shared_secret, ciphertext) = encapsulate(&pk);
 
     data.iter()
         .zip(shared_secret.as_bytes().iter().cycle())
@@ -37,6 +41,8 @@ pub fn sign_data(private_key: &[u8], message: &[u8]) -> Vec<u8> {
 }
 
 pub fn verify_signature(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
-    signature.iter().zip(message).all(|(s, m)| *s == (*m ^ public_key[0]))
+    signature
+        .iter()
+        .zip(message)
+        .all(|(s, m)| *s == (*m ^ public_key[0]))
 }
-
