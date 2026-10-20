@@ -1,8 +1,5 @@
-// Branch: plugin-system
-// File: src/plugins/mod.rs
-
-use std::collections::HashMap;
 use anyhow::Result;
+use std::collections::HashMap;
 
 pub trait Plugin {
     fn name(&self) -> &'static str;
@@ -20,8 +17,15 @@ impl PluginManager {
         }
     }
 
-    pub fn register_plugin<P: Plugin + Send + Sync + 'static>(&mut self, plugin: P) {
-        self.plugins.insert(plugin.name().to_string(), Box::new(plugin));
+    pub fn register_plugin<P: Plugin + Send + Sync + 'static>(&mut self, plugin: P) -> Result<()> {
+        let name = plugin.name();
+
+        if self.plugins.contains_key(name) {
+            anyhow::bail!("Plugin '{}' is already registered", name);
+        }
+
+        self.plugins.insert(name.to_string(), Box::new(plugin));
+        Ok(())
     }
 
     pub fn execute_plugin(&self, name: &str, input: &str) -> Result<String> {
@@ -49,3 +53,35 @@ impl Plugin for EchoPlugin {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct ReplacementPlugin;
+
+    impl Plugin for ReplacementPlugin {
+        fn name(&self) -> &'static str {
+            "echo"
+        }
+
+        fn execute(&self, _: &str) -> Result<String> {
+            Ok("replacement".to_string())
+        }
+    }
+
+    #[test]
+    fn duplicate_registration_preserves_original_plugin() {
+        let mut manager = PluginManager::new();
+
+        manager.register_plugin(EchoPlugin).unwrap();
+
+        let error = manager.register_plugin(ReplacementPlugin).unwrap_err();
+
+        assert!(error.to_string().contains("already registered"));
+        assert_eq!(
+            manager.execute_plugin("echo", "hello").unwrap(),
+            "Echo: hello"
+        );
+        assert_eq!(manager.list_plugins().len(), 1);
+    }
+}
