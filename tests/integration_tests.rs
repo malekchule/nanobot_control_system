@@ -3,14 +3,25 @@
 
 use nanobot_control_system::core::cryptography::*;
 use nanobot_control_system::core::nanobot_control::communication::NanobotCommunication;
-use nanobot_control_system::core::nanobot_control::task_manager::{TaskManager, NanobotTask};
+use nanobot_control_system::core::nanobot_control::task_manager::{NanobotTask, TaskManager};
 
 #[test]
 fn test_keypair_sign_verify() {
-    let (public, private) = generate_qsafe_keypair();
+    let (public, private) = generate_signing_keypair();
     let message = b"Verify me";
-    let sig = sign_data(&private, message);
-    assert!(verify_signature(&public, message, &sig));
+
+    let signature = sign_data(&private, message).unwrap();
+
+    assert!(verify_signature(&public, message, &signature));
+    assert!(!verify_signature(&public, b"Modified message", &signature));
+
+    let mut tampered_signature = signature.clone();
+    tampered_signature[0] ^= 1;
+
+    assert!(!verify_signature(&public, message, &tampered_signature));
+
+    assert!(!verify_signature(&public, message, &[]));
+    assert!(!verify_signature(&[], message, &signature));
 }
 
 #[test]
@@ -45,4 +56,3 @@ fn test_secure_message_with_replay_protection() {
     assert_eq!(first, b"Payload");
     assert_eq!(second, b"INVALID: Replay detected");
 }
-
