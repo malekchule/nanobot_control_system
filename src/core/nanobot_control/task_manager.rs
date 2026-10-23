@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
@@ -63,18 +63,78 @@ impl TaskManager {
         let reader = BufReader::new(file);
 
         let mut tasks = vec![];
-        for line in reader.lines() {
-            let line = line.context("Failed to read line from task file")?;
-            let parts: Vec<&str> = line.splitn(2, ',').collect();
-            if parts.len() == 2 {
-                if let Ok(id) = parts[0].parse::<u32>() {
-                    tasks.push(NanobotTask {
-                        task_id: id,
-                        description: parts[1].to_string(),
-                    });
-                }
-            }
+        for (index, line) in reader.lines().enumerate() {
+            let line_number = index + 1;
+            let line =
+                line.with_context(|| format!("Failed to read task file at line {line_number}"))?;
+            let (raw_id, description) = line.split_once(',').ok_or_else(|| {
+                anyhow!("Invalid task record at line {line_number}: missing comma")
+            })?;
+            let id = raw_id
+                .parse::<u32>()
+                .with_context(|| format!("Invalid task ID at line {line_number}: {raw_id:?}"))?;
+            tasks.push(NanobotTask {
+                task_id: id,
+                description: description.to_string(),
+            });
         }
         Ok(TaskManager { tasks })
+    }
+}
+
+#[cfg(test)]
+mod file_validation_tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn with_task_file(content: &str, test: impl FnOnce(&str)) {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+
+        let path =
+            std::env::temp_dir().join(format!("nanobot-tasks-{}-{nonce}.txt", std::process::id()));
+
+        std::fs::write(&path, content).unwrap();
+
+        let path_string = path.to_string_lossy().into_owned();
+        test(&path_string);
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn rejects_missing_separator_with_line_number() {
+        with_task_file("1,valid\nmalformed\n", |path| {
+            let result = TaskManager::load_from_file(path);
+            let error = result.err().expect("expected malformed record error");
+
+            assert!(error.to_string().contains("line 2"));
+            assert!(error.to_string().contains("missing comma"));
+        });
+    }
+
+    #[test]
+    fn rejects_invalid_task_id_with_line_number() {
+        with_task_file("abc,invalid\n", |path| {
+            let result = TaskManager::load_from_file(path);
+            let error = result.err().expect("expected invalid ID error");
+
+            assert!(error.to_string().contains("line 1"));
+            assert!(error.to_string().contains("Invalid task ID"));
+        });
+    }
+
+    #[test]
+    fn preserves_commas_in_valid_task_descriptions() {
+        with_task_file("42,Inspect, repair, report\n", |path| {
+            let manager = TaskManager::load_from_file(path).unwrap();
+            let tasks: Vec<_> = manager.iter_tasks().collect();
+
+            assert_eq!(tasks.len(), 1);
+            assert_eq!(tasks[0].task_id, 42);
+            assert_eq!(tasks[0].description, "Inspect, repair, report");
+        });
     }
 }
