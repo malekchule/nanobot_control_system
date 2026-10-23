@@ -10,6 +10,12 @@ pub struct PluginManager {
     plugins: HashMap<String, Box<dyn Plugin + Send + Sync>>,
 }
 
+impl Default for PluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PluginManager {
     pub fn new() -> Self {
         PluginManager {
@@ -67,6 +73,20 @@ mod tests {
         fn execute(&self, _: &str) -> Result<String> {
             Ok("replacement".to_string())
         }
+    }
+
+    #[test]
+    fn default_manager_starts_empty_and_accepts_plugins() {
+        let mut manager = PluginManager::default();
+
+        assert!(manager.list_plugins().is_empty());
+
+        manager.register_plugin(EchoPlugin).unwrap();
+
+        assert_eq!(
+            manager.execute_plugin("echo", "hello").unwrap(),
+            "Echo: hello"
+        );
     }
 
     #[test]
