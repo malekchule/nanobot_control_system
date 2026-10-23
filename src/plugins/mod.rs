@@ -42,7 +42,9 @@ impl PluginManager {
     }
 
     pub fn list_plugins(&self) -> Vec<String> {
-        self.plugins.keys().cloned().collect()
+        let mut names: Vec<String> = self.plugins.keys().cloned().collect();
+        names.sort_unstable();
+        names
     }
 }
 
@@ -87,6 +89,29 @@ mod tests {
             manager.execute_plugin("echo", "hello").unwrap(),
             "Echo: hello"
         );
+    }
+
+    #[test]
+    fn list_plugins_returns_names_in_sorted_order() {
+        struct TestPlugin(&'static str);
+
+        impl Plugin for TestPlugin {
+            fn name(&self) -> &'static str {
+                self.0
+            }
+
+            fn execute(&self, input: &str) -> Result<String> {
+                Ok(input.to_string())
+            }
+        }
+
+        let mut manager = PluginManager::new();
+
+        manager.register_plugin(TestPlugin("zeta")).unwrap();
+        manager.register_plugin(TestPlugin("alpha")).unwrap();
+        manager.register_plugin(TestPlugin("middle")).unwrap();
+
+        assert_eq!(manager.list_plugins(), vec!["alpha", "middle", "zeta"]);
     }
 
     #[test]
