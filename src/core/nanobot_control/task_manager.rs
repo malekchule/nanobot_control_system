@@ -114,6 +114,14 @@ mod file_validation_tests {
 
     static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
+    struct TempTaskFile(std::path::PathBuf);
+
+    impl Drop for TempTaskFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
     fn with_task_file(content: &str, test: impl FnOnce(&str)) {
         let (path, mut file) = loop {
             let id = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
@@ -132,10 +140,33 @@ mod file_validation_tests {
         file.write_all(content.as_bytes()).unwrap();
         drop(file);
 
-        let path_string = path.to_string_lossy().into_owned();
+        let fixture = TempTaskFile(path);
+        let path_string = fixture.0.to_string_lossy().into_owned();
         test(&path_string);
+    }
 
-        std::fs::remove_file(path).unwrap();
+    #[test]
+    fn cleans_up_task_file_after_test_panic() {
+        let captured_path = std::cell::RefCell::new(None);
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            with_task_file("42,fixture\\n", |path| {
+                *captured_path.borrow_mut() = Some(path.to_string());
+
+                panic!("intentional test panic");
+            });
+        }));
+
+        assert!(result.is_err());
+
+        let path = captured_path
+            .into_inner()
+            .expect("fixture path should be captured");
+
+        assert!(
+            !std::path::Path::new(&path).exists(),
+            "temporary task file was not removed"
+        );
     }
 
     #[test]
