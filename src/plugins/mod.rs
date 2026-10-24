@@ -45,6 +45,14 @@ impl PluginManager {
         }
     }
 
+    pub fn unregister_plugin(&mut self, name: &str) -> Result<()> {
+        if self.plugins.remove(name).is_none() {
+            anyhow::bail!("Plugin '{}' not found", name);
+        }
+
+        Ok(())
+    }
+
     pub fn list_plugins(&self) -> Vec<String> {
         let mut names: Vec<String> = self.plugins.keys().cloned().collect();
         names.sort_unstable();
@@ -160,6 +168,35 @@ mod tests {
 
         assert!(error.to_string().contains("whitespace"));
         assert!(manager.list_plugins().is_empty());
+    }
+
+    #[test]
+    fn unregister_removes_plugin() {
+        let mut manager = PluginManager::new();
+
+        manager.register_plugin(EchoPlugin).unwrap();
+        assert_eq!(manager.list_plugins(), vec!["echo"]);
+
+        manager.unregister_plugin("echo").unwrap();
+
+        assert!(manager.list_plugins().is_empty());
+        assert!(manager.execute_plugin("echo", "hello").is_err());
+    }
+
+    #[test]
+    fn unregister_unknown_plugin_preserves_registry() {
+        let mut manager = PluginManager::new();
+
+        manager.register_plugin(EchoPlugin).unwrap();
+
+        let error = manager.unregister_plugin("missing").unwrap_err();
+
+        assert!(error.to_string().contains("Plugin 'missing' not found"));
+        assert_eq!(manager.list_plugins(), vec!["echo"]);
+        assert_eq!(
+            manager.execute_plugin("echo", "hello").unwrap(),
+            "Echo: hello"
+        );
     }
 
     #[test]
