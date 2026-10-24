@@ -57,7 +57,7 @@ impl NanobotSwarm {
             let encrypted = unit.comms.send_secure_message(message)?;
             let decrypted = unit.comms.receive_secure_message(&encrypted)?;
 
-            let msg = String::from_utf8(decrypted)?;
+            let msg = String::from_utf8_lossy(&decrypted);
             println!("Unit {} received: {}", unit.id, msg);
         }
 
@@ -76,6 +76,22 @@ impl NanobotSwarm {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn broadcasts_non_utf8_payload() {
+        let swarm = NanobotSwarm::new(1);
+
+        let payload = [0x00, 0xff, 0xfe, 0x80, 0x42];
+
+        assert!(swarm.broadcast_message(&payload).is_ok());
+    }
+
+    #[test]
+    fn broadcasts_valid_utf8_payload() {
+        let swarm = NanobotSwarm::new(1);
+
+        assert!(swarm.broadcast_message(b"System online").is_ok());
+    }
 
     #[test]
     fn assigns_task_to_existing_unit() {
