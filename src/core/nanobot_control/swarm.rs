@@ -37,6 +37,17 @@ impl NanobotSwarm {
             .find(|unit| unit.id == unit_id)
             .ok_or_else(|| anyhow::anyhow!("Nanobot unit {unit_id} not found"))?;
 
+        if unit
+            .tasks
+            .iter_tasks()
+            .any(|existing| existing.task_id == task.task_id)
+        {
+            anyhow::bail!(
+                "Task {} is already assigned to unit {unit_id}",
+                task.task_id
+            );
+        }
+
         unit.tasks.add_task(task);
         Ok(())
     }
@@ -85,6 +96,60 @@ mod tests {
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].task_id, 42);
         assert_eq!(tasks[0].description, "Inspect unit");
+    }
+
+    #[test]
+    fn rejects_duplicate_task_assignment_to_same_unit() {
+        let mut swarm = NanobotSwarm::new(1);
+
+        swarm
+            .assign_task_to_unit(
+                0,
+                NanobotTask {
+                    task_id: 42,
+                    description: "Original task".to_string(),
+                },
+            )
+            .unwrap();
+
+        let error = swarm
+            .assign_task_to_unit(
+                0,
+                NanobotTask {
+                    task_id: 42,
+                    description: "Duplicate task".to_string(),
+                },
+            )
+            .unwrap_err();
+
+        assert!(error.to_string().contains("Task 42"));
+        assert!(error.to_string().contains("unit 0"));
+
+        let tasks: Vec<_> = swarm.units[0].tasks.iter_tasks().collect();
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].description, "Original task");
+    }
+
+    #[test]
+    fn allows_same_task_id_on_different_units() {
+        let mut swarm = NanobotSwarm::new(2);
+
+        for unit_id in [0, 1] {
+            swarm
+                .assign_task_to_unit(
+                    unit_id,
+                    NanobotTask {
+                        task_id: 42,
+                        description: "Shared task ID".to_string(),
+                    },
+                )
+                .unwrap();
+        }
+
+        for unit in &swarm.units {
+            assert_eq!(unit.tasks.iter_tasks().count(), 1);
+        }
     }
 
     #[test]
