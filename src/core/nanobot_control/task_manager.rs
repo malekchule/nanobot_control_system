@@ -47,6 +47,13 @@ impl TaskManager {
             }
         }
 
+        let mut seen_ids = std::collections::HashSet::new();
+        for task in &self.tasks {
+            if !seen_ids.insert(task.task_id) {
+                anyhow::bail!("Duplicate task ID {} cannot be saved", task.task_id);
+            }
+        }
+
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
@@ -133,6 +140,46 @@ mod file_validation_tests {
                 assert_eq!(std::fs::read_to_string(path).unwrap(), "7,existing task\n");
             });
         }
+    }
+
+    #[test]
+    fn rejects_duplicate_ids_without_overwriting_file() {
+        with_task_file("7,existing task\n", |path| {
+            let mut manager = TaskManager::new();
+
+            for description in ["first", "second"] {
+                manager.add_task(NanobotTask {
+                    task_id: 42,
+                    description: description.to_string(),
+                });
+            }
+
+            let error = manager.save_to_file(path).unwrap_err();
+
+            assert!(error.to_string().contains("Duplicate task ID 42"));
+            assert_eq!(std::fs::read_to_string(path).unwrap(), "7,existing task\n");
+        });
+    }
+
+    #[test]
+    fn saves_distinct_task_ids() {
+        with_task_file("", |path| {
+            let mut manager = TaskManager::new();
+
+            for id in [42, 43] {
+                manager.add_task(NanobotTask {
+                    task_id: id,
+                    description: format!("task {id}"),
+                });
+            }
+
+            manager.save_to_file(path).unwrap();
+
+            assert_eq!(
+                std::fs::read_to_string(path).unwrap(),
+                "42,task 42\n43,task 43\n"
+            );
+        });
     }
 
     #[test]
