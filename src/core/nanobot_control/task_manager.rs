@@ -65,6 +65,8 @@ impl TaskManager {
             writeln!(file, "{},{}", task.task_id, task.description)
                 .context("Failed to write task to file")?;
         }
+
+        file.flush().context("Failed to flush task file")?;
         Ok(())
     }
 
@@ -171,6 +173,27 @@ mod file_validation_tests {
 
             assert!(error.to_string().contains("Duplicate task ID 42"));
             assert_eq!(std::fs::read_to_string(path).unwrap(), "7,existing task\n");
+        });
+    }
+
+    #[test]
+    fn saved_tasks_can_be_reloaded_immediately() {
+        with_task_file("", |path| {
+            let mut manager = TaskManager::new();
+
+            manager.add_task(NanobotTask {
+                task_id: 101,
+                description: "Inspect, verify, report".to_string(),
+            });
+
+            manager.save_to_file(path).unwrap();
+
+            let restored = TaskManager::load_from_file(path).unwrap();
+            let tasks: Vec<_> = restored.iter_tasks().collect();
+
+            assert_eq!(tasks.len(), 1);
+            assert_eq!(tasks[0].task_id, 101);
+            assert_eq!(tasks[0].description, "Inspect, verify, report");
         });
     }
 
