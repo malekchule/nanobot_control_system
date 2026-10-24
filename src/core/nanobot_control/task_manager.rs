@@ -104,18 +104,27 @@ impl TaskManager {
 #[cfg(test)]
 mod file_validation_tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
     fn with_task_file(content: &str, test: impl FnOnce(&str)) {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
+        let (path, mut file) = loop {
+            let id = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
+            let path =
+                std::env::temp_dir().join(format!("nanobot-tasks-{}-{id}.txt", std::process::id()));
 
-        let path =
-            std::env::temp_dir().join(format!("nanobot-tasks-{}-{nonce}.txt", std::process::id()));
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(file) => break (path, file),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    continue;
+                }
+                Err(error) => panic!("Failed to create task test file: {error}"),
+            }
+        };
 
-        std::fs::write(&path, content).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        drop(file);
 
         let path_string = path.to_string_lossy().into_owned();
         test(&path_string);
