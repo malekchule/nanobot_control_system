@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
+use std::io::ErrorKind;
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
 
 pub struct NanobotTask {
     pub task_id: u32,
@@ -69,11 +69,15 @@ impl TaskManager {
     }
 
     pub fn load_from_file(path: &str) -> Result<Self> {
-        if !Path::new(path).exists() {
-            return Ok(TaskManager { tasks: vec![] });
-        }
-
-        let file = File::open(path).context("Unable to open task file for reading")?;
+        let file = match File::open(path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                return Ok(TaskManager::new());
+            }
+            Err(error) => {
+                return Err(error).context("Unable to open task file for reading");
+            }
+        };
         let reader = BufReader::new(file);
 
         let mut tasks = vec![];
@@ -188,6 +192,20 @@ mod file_validation_tests {
                 std::fs::read_to_string(path).unwrap(),
                 "42,task 42\n43,task 43\n"
             );
+        });
+    }
+
+    #[test]
+    fn missing_task_file_returns_empty_manager() {
+        with_task_file("", |path| {
+            std::fs::remove_file(path).unwrap();
+
+            let manager = TaskManager::load_from_file(path).unwrap();
+
+            assert_eq!(manager.iter_tasks().count(), 0);
+
+            // Restore the fixture for the test helper's cleanup.
+            std::fs::write(path, "").unwrap();
         });
     }
 
