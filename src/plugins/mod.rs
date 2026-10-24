@@ -26,6 +26,10 @@ impl PluginManager {
     pub fn register_plugin<P: Plugin + Send + Sync + 'static>(&mut self, plugin: P) -> Result<()> {
         let name = plugin.name();
 
+        if name.trim().is_empty() {
+            anyhow::bail!("Plugin name cannot be empty or whitespace");
+        }
+
         if self.plugins.contains_key(name) {
             anyhow::bail!("Plugin '{}' is already registered", name);
         }
@@ -112,6 +116,50 @@ mod tests {
         manager.register_plugin(TestPlugin("middle")).unwrap();
 
         assert_eq!(manager.list_plugins(), vec!["alpha", "middle", "zeta"]);
+    }
+
+    #[test]
+    fn rejects_empty_plugin_name() {
+        struct EmptyNamePlugin;
+
+        impl Plugin for EmptyNamePlugin {
+            fn name(&self) -> &'static str {
+                ""
+            }
+
+            fn execute(&self, input: &str) -> Result<String> {
+                Ok(input.to_string())
+            }
+        }
+
+        let mut manager = PluginManager::new();
+
+        let error = manager.register_plugin(EmptyNamePlugin).unwrap_err();
+
+        assert!(error.to_string().contains("cannot be empty"));
+        assert!(manager.list_plugins().is_empty());
+    }
+
+    #[test]
+    fn rejects_whitespace_only_plugin_name() {
+        struct WhitespacePlugin;
+
+        impl Plugin for WhitespacePlugin {
+            fn name(&self) -> &'static str {
+                "   "
+            }
+
+            fn execute(&self, input: &str) -> Result<String> {
+                Ok(input.to_string())
+            }
+        }
+
+        let mut manager = PluginManager::new();
+
+        let error = manager.register_plugin(WhitespacePlugin).unwrap_err();
+
+        assert!(error.to_string().contains("whitespace"));
+        assert!(manager.list_plugins().is_empty());
     }
 
     #[test]
