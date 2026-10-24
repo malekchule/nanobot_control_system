@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
@@ -69,6 +70,7 @@ impl TaskManager {
         let reader = BufReader::new(file);
 
         let mut tasks = vec![];
+        let mut seen_ids = HashSet::new();
         for (index, line) in reader.lines().enumerate() {
             let line_number = index + 1;
             let line =
@@ -79,6 +81,10 @@ impl TaskManager {
             let id = raw_id
                 .parse::<u32>()
                 .with_context(|| format!("Invalid task ID at line {line_number}: {raw_id:?}"))?;
+            if !seen_ids.insert(id) {
+                anyhow::bail!("Duplicate task ID {id} at line {line_number}");
+            }
+
             tasks.push(NanobotTask {
                 task_id: id,
                 description: description.to_string(),
@@ -137,6 +143,28 @@ mod file_validation_tests {
 
             assert!(error.to_string().contains("line 2"));
             assert!(error.to_string().contains("missing comma"));
+        });
+    }
+
+    #[test]
+    fn rejects_duplicate_task_ids_with_line_number() {
+        with_task_file("42,first task\n42,second task\n", |path| {
+            let error = TaskManager::load_from_file(path)
+                .err()
+                .expect("expected duplicate task ID error");
+
+            assert!(error.to_string().contains("Duplicate task ID 42"));
+            assert!(error.to_string().contains("line 2"));
+        });
+    }
+
+    #[test]
+    fn accepts_distinct_task_ids() {
+        with_task_file("42,first task\n43,second task\n", |path| {
+            let manager = TaskManager::load_from_file(path).unwrap();
+            let ids: Vec<_> = manager.iter_tasks().map(|task| task.task_id).collect();
+
+            assert_eq!(ids, vec![42, 43]);
         });
     }
 
