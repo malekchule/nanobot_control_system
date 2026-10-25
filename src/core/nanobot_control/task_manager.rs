@@ -97,6 +97,10 @@ impl TaskManager {
             let id = raw_id
                 .parse::<u32>()
                 .with_context(|| format!("Invalid task ID at line {line_number}: {raw_id:?}"))?;
+            if description.trim().is_empty() {
+                anyhow::bail!("Empty task description for ID {id} at line {line_number}");
+            }
+
             if !seen_ids.insert(id) {
                 anyhow::bail!("Duplicate task ID {id} at line {line_number}");
             }
@@ -316,6 +320,21 @@ mod file_validation_tests {
 
             assert_eq!(ids, vec![42, 43]);
         });
+    }
+
+    #[test]
+    fn rejects_blank_loaded_task_descriptions() {
+        for description in ["", " ", "\t", " \t "] {
+            with_task_file(&format!("7,valid task\n42,{description}\n"), |path| {
+                let error = TaskManager::load_from_file(path)
+                    .err()
+                    .expect("expected blank description error");
+
+                assert!(error.to_string().contains("ID 42"));
+                assert!(error.to_string().contains("line 2"));
+                assert!(error.to_string().contains("Empty task description"));
+            });
+        }
     }
 
     #[test]
