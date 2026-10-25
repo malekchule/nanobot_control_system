@@ -42,6 +42,9 @@ impl TaskManager {
 
     pub fn save_to_file(&self, path: &str) -> Result<()> {
         for task in &self.tasks {
+            if task.description.trim().is_empty() {
+                anyhow::bail!("Task {} description cannot be empty", task.task_id);
+            }
             if task.description.contains('\n') || task.description.contains('\r') {
                 anyhow::bail!("Task {} description contains a newline", task.task_id);
             }
@@ -167,6 +170,25 @@ mod file_validation_tests {
             !std::path::Path::new(&path).exists(),
             "temporary task file was not removed"
         );
+    }
+
+    #[test]
+    fn rejects_blank_descriptions_without_overwriting_file() {
+        for description in ["", " ", "\t", " \t "] {
+            with_task_file("7,existing task\n", |path| {
+                let mut manager = TaskManager::new();
+                manager.add_task(NanobotTask {
+                    task_id: 42,
+                    description: description.to_string(),
+                });
+
+                let error = manager.save_to_file(path).unwrap_err();
+
+                assert!(error.to_string().contains("Task 42"));
+                assert!(error.to_string().contains("cannot be empty"));
+                assert_eq!(std::fs::read_to_string(path).unwrap(), "7,existing task\n");
+            });
+        }
     }
 
     #[test]
