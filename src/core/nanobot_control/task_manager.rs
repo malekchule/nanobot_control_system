@@ -94,6 +94,12 @@ impl TaskManager {
             let (raw_id, description) = line.split_once(',').ok_or_else(|| {
                 anyhow!("Invalid task record at line {line_number}: missing comma")
             })?;
+            if raw_id != raw_id.trim() {
+                anyhow::bail!(
+                    "Task ID contains surrounding whitespace at line {line_number}: {raw_id:?}"
+                );
+            }
+
             let id = raw_id
                 .parse::<u32>()
                 .with_context(|| format!("Invalid task ID at line {line_number}: {raw_id:?}"))?;
@@ -334,6 +340,23 @@ mod file_validation_tests {
                 assert!(error.to_string().contains("line 2"));
                 assert!(error.to_string().contains("Empty task description"));
             });
+        }
+    }
+
+    #[test]
+    fn rejects_task_ids_with_surrounding_whitespace() {
+        for invalid_id in [" 42", "42 ", "\t42", "42\t"] {
+            with_task_file(
+                &format!("7,valid task\n{invalid_id},invalid task\n"),
+                |path| {
+                    let error = TaskManager::load_from_file(path)
+                        .err()
+                        .expect("expected whitespace validation error");
+
+                    assert!(error.to_string().contains("surrounding whitespace"));
+                    assert!(error.to_string().contains("line 2"));
+                },
+            );
         }
     }
 
